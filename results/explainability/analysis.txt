@@ -1,1 +1,26 @@
-The image shows a strong salt deposit covering 41.8% of the area, mainly in the upper left region. This suggests potential structural traps.
+Geological Salt Analysis Report
+=====================================
+
+Image: fffd909d0f.png
+Analysis Date: explainability_gradcam.py execution
+
+QUANTITATIVE RESULTS:
+- Salt Strength: Strong
+- Coverage Percentage: 49.73%
+- Spatial Distribution: upper left
+- Classification Zone: High salt zone
+
+GEOLOGICAL INTERPRETATION:
+This seismic section reveals a significant salt structure with 49.7% coverage, indicating a mature diapir or salt dome formation. The high salt concentration suggests favorable conditions for hydrocarbon trapping and potential commercial extraction. The salt distribution is positioned in the updip section, typically associated with salt withdrawal basins, which aligns with the High salt zone classification.
+
+COMMERCIAL VIABILITY:
+Highly viable for extraction.
+
+GEOLOGICAL ANALOGS:
+Similar patterns found in continental shelf edges
+
+TECHNICAL DETAILS:
+- Model: pinn_unetpp_best.keras
+- Classifier: unetpp_classifier.h5
+- Input Resolution: (128, 128)
+- Last Conv Layer (Grad-CAM): conv2d_18

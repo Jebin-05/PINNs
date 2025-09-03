@@ -4,13 +4,12 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 from tensorflow.keras.models import load_model
-from transformers import AutoTokenizer, AutoModelForCausalLM
 
 # ---------------------------
 # CONFIGURATION
 # ---------------------------
 SEGMENTATION_MODEL_PATH = "models/pinn_unetpp_best.keras"
-CLASSIFIER_MODEL_PATH = "models/resnet_classifier.h5"
+CLASSIFIER_MODEL_PATH = "models/unetpp_classifier.h5"
 TEST_IMAGE_PATH = "/home/jebin/Desktop/PINNs/data/test/images/fffd909d0f.png"
 IMG_SIZE = (128, 128)
 RESULTS_DIR = "results/explainability"
@@ -23,13 +22,16 @@ from train_pinn_unetpp import physics_informed_loss
 # Load Segmentation Model
 # ---------------------------
 print("🔄 Loading segmentation model...")
-seg_model = load_model(SEGMENTATION_MODEL_PATH, custom_objects={'physics_informed_loss': physics_informed_loss})
+seg_model = load_model(
+    SEGMENTATION_MODEL_PATH,
+    custom_objects={'physics_informed_loss': physics_informed_loss}
+)
 print("✅ Segmentation model loaded!")
 
 # ---------------------------
 # Load Classification Model
 # ---------------------------
-print("🔄 Loading ResNet50 classification model...")
+print("🔄 Loading UNet++ classification model...")
 clf_model = load_model(CLASSIFIER_MODEL_PATH)
 print("✅ Classification model loaded!")
 
@@ -45,9 +47,7 @@ if img is None:
 
 img_resized = cv2.resize(img, IMG_SIZE) / 255.0
 input_img_seg = np.expand_dims(img_resized, axis=(0, -1))  # for UNet++
-input_img_clf = np.stack([img_resized] * 3, axis=-1)  # Convert to RGB for ResNet
-input_img_clf = cv2.resize(input_img_clf, (224, 224))  # ResNet50 expects 224x224
-input_img_clf = np.expand_dims(input_img_clf, axis=0)
+input_img_clf = np.expand_dims(img_resized, axis=(0, -1))  # UNet++ classifier also expects single channel
 
 # ---------------------------
 # Segmentation Inference
@@ -73,7 +73,10 @@ classified_zone = class_names[class_label]
 # Grad-CAM
 # ---------------------------
 def get_gradcam_heatmap(model, image_array, last_conv_layer_name):
-    grad_model = tf.keras.models.Model([model.inputs], [model.get_layer(last_conv_layer_name).output, model.output])
+    grad_model = tf.keras.models.Model(
+        [model.inputs],
+        [model.get_layer(last_conv_layer_name).output, model.output]
+    )
     with tf.GradientTape() as tape:
         conv_outputs, predictions = grad_model(image_array)
         loss = predictions[:, :, :, 0]
@@ -98,12 +101,8 @@ overlay = cv2.addWeighted(cv2.cvtColor(img, cv2.COLOR_GRAY2BGR), 0.6, heatmap_co
 cv2.imwrite(os.path.join(RESULTS_DIR, "gradcam_overlay.png"), overlay)
 
 # ---------------------------
-# GPT-2 Output
+# Analysis and Reporting
 # ---------------------------
-print("🔄 Loading GPT-2...")
-tokenizer = AutoTokenizer.from_pretrained("distilgpt2")
-gpt2_model = AutoModelForCausalLM.from_pretrained("distilgpt2")
-print("✅ GPT-2 ready!")
 
 strength = (
     "strong" if salt_percentage >= 30 else
@@ -126,22 +125,15 @@ similar_region = region_patterns.get(region_text, "offshore marine basin")
 prompt = (
     f"The segmentation model predicts a {strength} salt deposit with approximately {salt_percentage:.2f}% coverage. "
     f"The classified region is: {classified_zone}. The location of salt is concentrated in the {region_text}. "
-    f"Viability for extraction: {viability} Similar geological regions include {similar_region}. "
-    f"Explain this result to a geologist:\n\n"
+    f"Viability for extraction: {viability} Similar geological regions include {similar_region}."
 )
 
-inputs = tokenizer(prompt, return_tensors="pt")
-outputs = gpt2_model.generate(
-    **inputs,
-    max_length=160,
-    do_sample=True,
-    temperature=0.7,
-    pad_token_id=tokenizer.eos_token_id,
-    eos_token_id=tokenizer.eos_token_id
+# Simple rule-based explanation instead of GPT-2
+explanation = (
+    f"This geological formation shows {strength} salt presence with {salt_percentage:.2f}% coverage in the {region_text} region. "
+    f"Based on the classification as {classified_zone.lower()}, this formation is characteristic of {similar_region}. "
+    f"{viability}"
 )
-
-explanation = tokenizer.decode(outputs[0], skip_special_tokens=True).replace(prompt, "").strip()
-explanation = explanation.split(".")[0] + "."
 
 # ---------------------------
 # Final Output
